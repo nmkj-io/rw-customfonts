@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Custom Fonts</name>
+  <author>nmkj</author>
+  <packageId>nmkj.customfonts</packageId>
+  <url>https://twitter.com/nmkj_io</url>
+  <supportedVersions>
+    <li>1.3</li>
+  </supportedVersions>
+  <loadBefore>
+    <li>
+    </li>
+  </loadBefore>
+  <loadAfter>
+    <li>Ludeon.RimWorld</li>
+    <li>Ludeon.RimWorld.Royalty</li>
+    <li>Ludeon.RimWorld.Ideology</li>
+    <li>aRandomKiwi.RimThemes</li>
+    <li>latta.devl10n</li>
+  </loadAfter>
+  <description>This mod enables changing the game font.\nゲームのフォントを変更できるようにします</description>
+  <modDependencies>
+  </modDependencies>
+</ModMetaData>
+
