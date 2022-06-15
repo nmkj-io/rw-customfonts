@@ -5,7 +5,6 @@ using System.Runtime.InteropServices;
 using Verse;
 using UnityEngine;
 using HarmonyLib;
-using RimWorld;
 
 namespace CustomFonts
 {
