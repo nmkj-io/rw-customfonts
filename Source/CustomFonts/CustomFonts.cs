@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Reflection;
 using System.Runtime.InteropServices;
 using Verse;
 using UnityEngine;
@@ -59,7 +58,7 @@ namespace CustomFonts
             SpaceBetweenLines = new float[gameFontEnumLength];
 
             MyHarmony = new Harmony("nmkj.customfonts");
-            MyHarmony.PatchAll(Assembly.GetExecutingAssembly());
+            MyHarmony.PatchAll();
         }
 
         public override void DoSettingsWindowContents(Rect inRect) // The GUI part to edit the mod settings.
@@ -159,7 +158,7 @@ namespace CustomFonts
     {
         private static bool _patcherInitialized;
         
-        [HarmonyPatch(typeof(Text), "StartOfOnGUI")]
+        [HarmonyPatch(typeof(Text), nameof(Text.StartOfOnGUI))]
         class StartOfOnGUIPatcher
         {
             [HarmonyPostfix]
@@ -167,13 +166,15 @@ namespace CustomFonts
             {
                 if (_patcherInitialized) return;
 
-                Log.Message("[Custom Fonts] Patcher on StartOfOnGUI initialized");
                 _patcherInitialized = true;
                 CustomFonts.RecalcCustomLineHeights();
+#if DEBUG
+                Log.Message("[Custom Fonts] Font patcher initialised");
+#endif
             }
         }
 
-        [HarmonyPatch(typeof(GenScene), "GoToMainMenu")]
+        [HarmonyPatch(typeof(GenScene), nameof(GenScene.GoToMainMenu))]
         class GoToMainMenuPatcher
         {
             [HarmonyPostfix]
