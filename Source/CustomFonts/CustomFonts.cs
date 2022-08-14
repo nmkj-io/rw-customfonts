@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Verse;
 using UnityEngine;
@@ -34,8 +36,10 @@ namespace CustomFonts
     public class CustomFonts : Mod
     {
         private readonly FontSettings _settings;
-        private string[] _installedFontNames;
+        private List<string> _fontNames = new List<string>();
         private bool _hasInstalledFontNames;
+        private static bool _hasBundledFonts;
+        private static readonly Dictionary<string, Font> BundledFonts = new Dictionary<string, Font>();
         private static readonly Dictionary<GameFont, Font> DefaultFonts = new Dictionary<GameFont, Font>();
         public static readonly Dictionary<GameFont, Font> CurrentFonts = new Dictionary<GameFont, Font>();
         private readonly bool _isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
@@ -43,6 +47,7 @@ namespace CustomFonts
         public static Harmony MyHarmony { get; private set; }
         public static float[] LineHeights;
         public static float[] SpaceBetweenLines;
+        private static ModContentPack _content;
 
         public CustomFonts(ModContentPack content) :
             base(content) // A mandatory constructor which resolves the reference to the mod settings.
@@ -57,6 +62,8 @@ namespace CustomFonts
             LineHeights = new float[gameFontEnumLength];
             SpaceBetweenLines = new float[gameFontEnumLength];
 
+            _content = content;
+
             MyHarmony = new Harmony("nmkj.customfonts");
             MyHarmony.PatchAll();
         }
@@ -64,6 +71,7 @@ namespace CustomFonts
         public override void DoSettingsWindowContents(Rect inRect) // The GUI part to edit the mod settings.
         {
             SetupOSInstalledFontNames();
+            SetupBundledFonts();
             var isDefaultFont = FontSettings.CurrentFontName == FontSettings.DefaultFontName;
 
             var listingStandard = new Listing_Standard();
@@ -81,12 +89,18 @@ namespace CustomFonts
             listingStandard.End();
             var fontScrollRect = new Rect(inRect.x, inRect.y + 90f, inRect.width, inRect.height - 90f);
             var fontListRect = new Rect(fontScrollRect.x, fontScrollRect.y, fontScrollRect.width - 30f,
-                24f * _installedFontNames.Length);
+                24f * _fontNames.Count);
             Widgets.BeginScrollView(fontScrollRect, ref _scrollPosition, fontListRect);
             listingStandard.Begin(fontListRect);
             if (listingStandard.RadioButton(FontSettings.DefaultFontName, isDefaultFont))
                 SaveFont(FontSettings.DefaultFontName);
-            foreach (var name in _installedFontNames)
+            listingStandard.GapLine();
+            foreach (var name in BundledFonts.Keys)
+            {
+                if (listingStandard.RadioButton(name, FontSettings.CurrentFontName == name)) SaveFont(name);
+            }
+            listingStandard.GapLine();
+            foreach (var name in _fontNames)
             {
                 if (listingStandard.RadioButton(name, FontSettings.CurrentFontName == name)) SaveFont(name);
             }
@@ -102,7 +116,33 @@ namespace CustomFonts
         {
             if (_hasInstalledFontNames) return;
             _hasInstalledFontNames = true;
-            _installedFontNames = Font.GetOSInstalledFontNames();
+            _fontNames = Font.GetOSInstalledFontNames().ToList();
+
+#if DEBUG
+            var fontPath = Font.GetPathsToOSFonts();
+            Log.Message($"[Custom Fonts] Looking up fonts at:\n{string.Join("\n", fontPath)}");
+#endif
+        }
+
+        private static void SetupBundledFonts()
+        {
+            if (_hasBundledFonts) return;
+            _hasBundledFonts = true;
+            var fontAssetPath = Path.Combine(_content.RootDir, "rimfonts");
+            var cab = AssetBundle.LoadFromFile(fontAssetPath);
+            if (cab == null)
+            {
+                Log.Message("[Custom Fonts] Unable to load bundled fonts.");
+                return;
+            }
+#if DEBUG
+            Log.Message($"[Custom Fonts] Loading font asset at {fontAssetPath}:\n{string.Join("\n", cab.GetAllAssetNames())}");
+#endif
+
+            foreach (var font in cab.LoadAllAssets<Font>())
+            {
+                BundledFonts.Add($"(Bundled) {font.fontNames[0]}", font);
+            }
         }
 
         private static void SaveFont(string fontName)
@@ -115,6 +155,7 @@ namespace CustomFonts
 
         public static void UpdateFont()
         {
+            SetupBundledFonts();
             foreach (GameFont value in Enum.GetValues(typeof(GameFont)))
             {
                 UpdateFont(value);
@@ -125,14 +166,32 @@ namespace CustomFonts
         {
             if (FontSettings.CurrentFontName == FontSettings.PreviousFontName) return;
 
-            var font = FontSettings.CurrentFontName != FontSettings.DefaultFontName
-                ? Font.CreateDynamicFontFromOSFont(FontSettings.CurrentFontName, DefaultFonts[fontIndex].fontSize)
-                : DefaultFonts[fontIndex];
+            var isBundled = BundledFonts.ContainsKey(FontSettings.CurrentFontName);
+            Font font;
+
+            if (isBundled)
+            {
+                font = BundledFonts[FontSettings.CurrentFontName];
+            }
+            else
+            {
+                font = FontSettings.CurrentFontName != FontSettings.DefaultFontName
+                    ? Font.CreateDynamicFontFromOSFont(FontSettings.CurrentFontName, DefaultFonts[fontIndex].fontSize)
+                    : DefaultFonts[fontIndex];
+            }
+
+#if DEBUG
+            Log.Message($"[Custom Fonts] Updating font to {FontSettings.CurrentFontName}");
+#endif
             CurrentFonts[fontIndex] = font;
             Text.fontStyles[(int)fontIndex].font = font;
+            Text.fontStyles[(int)fontIndex].fontSize = DefaultFonts[fontIndex].fontSize;
             Text.textFieldStyles[(int)fontIndex].font = font;
+            Text.textFieldStyles[(int)fontIndex].fontSize = DefaultFonts[fontIndex].fontSize;
             Text.textAreaStyles[(int)fontIndex].font = font;
+            Text.textAreaStyles[(int)fontIndex].fontSize = DefaultFonts[fontIndex].fontSize;
             Text.textAreaReadOnlyStyles[(int)fontIndex].font = font;
+            Text.textAreaReadOnlyStyles[(int)fontIndex].fontSize = DefaultFonts[fontIndex].fontSize;
             RecalcCustomLineHeights();
         }
 
@@ -157,7 +216,7 @@ namespace CustomFonts
     internal static class HarmoneyPatchers
     {
         private static bool _patcherInitialized;
-        
+
         [HarmonyPatch(typeof(Text), nameof(Text.StartOfOnGUI))]
         class StartOfOnGUIPatcher
         {
