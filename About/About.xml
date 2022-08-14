@@ -18,8 +18,7 @@
     <li>aRandomKiwi.RimThemes</li>
     <li>latta.devl10n</li>
   </loadAfter>
-<description><![CDATA[
-This mod enables changing the game font to system fonts or bundled ones.
+<description><![CDATA[This mod enables changing the game font to system fonts or bundled ones.
 ゲームのフォントをOSのフォントか同梱フォントに変更できるようにします。
 
 <size=17><b>Bundled Fonts</b></size>
@@ -27,8 +26,7 @@ This mod enables changing the game font to system fonts or bundled ones.
 <b>- Sarasa UI J</b>
 Copyright (c) 2015-2022, Renzhi Li (aka. Belleve Invis, belleve@typeof.net).
 SIL Open Font License 1.1
-https://github.com/be5invis/Sarasa-Gothic
-]]></description>
+https://github.com/be5invis/Sarasa-Gothic]]></description>
   <modDependencies>
     <li>
         <packageId>brrainz.harmony</packageId>
