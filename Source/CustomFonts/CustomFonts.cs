@@ -2,12 +2,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Net.Mime;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Verse;
 using UnityEngine;
 using HarmonyLib;
+using RimWorld.Planet;
+using TMPro;
+using UnityEngine.TextCore.LowLevel;
 
 namespace CustomFonts
 {
@@ -44,11 +44,13 @@ namespace CustomFonts
         private List<string> _fontNames = new List<string>();
         private bool _hasInstalledFontNames;
         private static bool _hasBundledFonts;
+        private static bool _hasOSFontAssets;
         private static readonly Dictionary<string, Font> BundledFonts = new Dictionary<string, Font>();
         private static readonly Dictionary<GameFont, Font> DefaultFonts = new Dictionary<GameFont, Font>();
         public static readonly Dictionary<GameFont, Font> CurrentFonts = new Dictionary<GameFont, Font>();
         public static readonly Dictionary<GameFont, GUIStyle> DefaultFontStyle = new Dictionary<GameFont, GUIStyle>();
-        private readonly bool _isWindows = RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        public static readonly List<TMP_FontAsset> OSFontAssets = new List<TMP_FontAsset>();
+        public static TMP_FontAsset DefaultTMPFontAsset;
         private Vector2 _scrollPosition = Vector2.zero;
         public static Harmony MyHarmony { get; private set; }
         private static ModContentPack _content;
@@ -57,12 +59,12 @@ namespace CustomFonts
             base(content) // A mandatory constructor which resolves the reference to the mod settings.
         {
             _settings = GetSettings<FontSettings>();
+            
             foreach (GameFont value in Enum.GetValues(typeof(GameFont)))
             {
                 DefaultFonts[value] = Text.fontStyles[(int)value].font;
                 DefaultFontStyle[value] = Text.fontStyles[(int)value];
             }
-
             var gameFontEnumLength = Enum.GetValues(typeof(GameFont)).Length;
 
             _content = content;
@@ -74,6 +76,7 @@ namespace CustomFonts
         public override void DoSettingsWindowContents(Rect inRect) // The GUI part to edit the mod settings.
         {
             SetupOSInstalledFontNames();
+            SetupOSFontAssets();
             SetupBundledFonts();
             var isDefaultFont = FontSettings.CurrentFontName == FontSettings.DefaultFontName;
 
@@ -106,12 +109,18 @@ namespace CustomFonts
             section.GapLine();
             foreach (var name in BundledFonts.Keys)
             {
-                if (section.RadioButton(name, FontSettings.CurrentFontName == name)) SaveFont(name);
+                if (section.RadioButton(name, FontSettings.CurrentFontName == name))
+                {
+                    SaveFont(name);
+                }
             }
             section.GapLine();
             foreach (var name in _fontNames)
             {
-                if (section.RadioButton(name, FontSettings.CurrentFontName == name)) SaveFont(name);
+                if (section.RadioButton(name, FontSettings.CurrentFontName == name))
+                {
+                    SaveFont(name);
+                }
             }
             section.End();
             Widgets.EndScrollView();
@@ -139,6 +148,7 @@ namespace CustomFonts
             {
                 FontSettings.ScaleFactor = fontSizeScale;
                 UpdateFont();
+                UpdateWorldFont(FontSettings.CurrentFontName);
             }
             
             sliders.End();
@@ -155,11 +165,19 @@ namespace CustomFonts
             if (_hasInstalledFontNames) return;
             _hasInstalledFontNames = true;
             _fontNames = Font.GetOSInstalledFontNames().ToList();
+        }
 
-#if DEBUG
-            var fontPath = Font.GetPathsToOSFonts();
-            Log.Message($"[Custom Fonts] Looking up fonts at:\n{string.Join("\n", fontPath)}");
-#endif
+        private static void SetupOSFontAssets()
+        {
+            if (_hasOSFontAssets) return;
+            _hasOSFontAssets = true;
+            foreach (var path in Font.GetPathsToOSFonts())
+            {
+                var asset = TMP_FontAsset.CreateFontAsset(new Font(path));
+                if (asset.fallbackFontAssetTable == null)
+                    asset.fallbackFontAssetTable = new List<TMP_FontAsset>();
+                OSFontAssets.Add(asset);
+            }
         }
 
         private static void SetupBundledFonts()
@@ -188,6 +206,7 @@ namespace CustomFonts
             if (fontName == FontSettings.CurrentFontName && !forceUpdate) return;
             FontSettings.CurrentFontName = fontName;
             UpdateFont();
+            UpdateWorldFont(fontName);
         }
 
         public static void UpdateFont()
@@ -220,8 +239,9 @@ namespace CustomFonts
             }
 
 #if DEBUG
-            Log.Message($"[Custom Fonts] Updating font to {FontSettings.CurrentFontName} with size {fontSize}");
+            Log.Message($"[Custom Fonts] Updating font to {string.Join(", ", font.fontNames)}");
 #endif
+            
             CurrentFonts[fontIndex] = font;
             Text.fontStyles[(int)fontIndex].font = font;
             Text.fontStyles[(int)fontIndex].fontSize = fontSize;
@@ -232,6 +252,43 @@ namespace CustomFonts
             Text.textAreaReadOnlyStyles[(int)fontIndex].font = font;
             Text.textAreaReadOnlyStyles[(int)fontIndex].fontSize = fontSize;
             RecalcCustomLineHeights(fontIndex);
+        }
+
+        public static void UpdateWorldFont(string fontName, bool forceUpdate = false)
+        {
+            AccessTools.StaticFieldRefAccess<float>(typeof(WorldFeatureTextMesh_TextMeshPro), "TextScale") = FontSettings.ScaleFactor;
+            if (fontName == FontSettings.CurrentFontName && !forceUpdate) return;
+            if (fontName == FontSettings.DefaultFontName)
+            {
+                WorldFeatureTextMesh_TextMeshPro.WorldTextPrefab.GetComponent<TextMeshPro>().font = DefaultTMPFontAsset;
+                return;
+            }
+            if (BundledFonts.ContainsKey(fontName))
+            {
+                var bundleTMP = TMP_FontAsset.CreateFontAsset(BundledFonts[fontName]);
+                WorldFeatureTextMesh_TextMeshPro.WorldTextPrefab.GetComponent<TextMeshPro>().font = bundleTMP;
+                return;
+            }
+            
+            SetupOSFontAssets();
+
+            var candidates = OSFontAssets.Where(asset => fontName.Contains(asset.faceInfo.familyName));
+            TMP_FontAsset fontAsset = null;
+            foreach (var candidate in candidates)
+            {
+                if (fontName.Contains(candidate.faceInfo.styleName))
+                {
+                    fontAsset = candidate;
+                    break;
+                }
+
+                if (fontName == candidate.faceInfo.familyName)
+                {
+                    fontAsset = candidate;
+                    break;
+                }
+            }
+            WorldFeatureTextMesh_TextMeshPro.WorldTextPrefab.GetComponent<TextMeshPro>().font = fontAsset ?? DefaultTMPFontAsset;
         }
 
         public static void RecalcCustomLineHeights()
@@ -262,7 +319,10 @@ namespace CustomFonts
                 if (_patcherInitialized) return;
 
                 _patcherInitialized = true;
+                CustomFonts.DefaultTMPFontAsset = WorldFeatureTextMesh_TextMeshPro.WorldTextPrefab.GetComponent<TextMeshPro>().font;
                 CustomFonts.UpdateFont();
+                CustomFonts.UpdateWorldFont(FontSettings.CurrentFontName, true);
+                // AccessTools.StaticFieldRefAccess<float>(typeof(WorldFeatureTextMesh_TextMeshPro), "TextScale") = FontSettings.ScaleFactor;
 #if DEBUG
                 Log.Message("[Custom Fonts] Font patcher initialised");
 #endif
@@ -276,7 +336,32 @@ namespace CustomFonts
             public static void Postfix()
             {
                 CustomFonts.UpdateFont();
+                CustomFonts.UpdateWorldFont(FontSettings.CurrentFontName, true);
             }
         }
+        
+        [HarmonyPatch(typeof(WorldFeatures), "HasCharacter")]
+        private class WorldMapHasCharacterPatcher
+        {
+            [HarmonyPrefix]
+            public static bool Prefix(ref bool __result)
+            {
+                if (FontSettings.CurrentFontName == FontSettings.DefaultFontName)
+                    return true;
+                __result = true;
+                return false;
+            }
+        }
+        
+        [HarmonyPatch(typeof(WorldFeatureTextMesh_TextMeshPro), "Init")]
+        class WorldMapInitPatcher
+        {
+            [HarmonyPostfix]
+            public static void Postfix()
+            {
+                CustomFonts.UpdateWorldFont(FontSettings.CurrentFontName, true);
+            }
+        }
+
     }
 }
