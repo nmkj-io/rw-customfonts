@@ -79,10 +79,15 @@
           <HintPath>..\..\..\..\RimWorldLinux_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
           <Private>False</Private>
         </Reference>
+        <Reference Include="UnityEngine.UI">
+          <HintPath>..\..\..\..\RimWorldLinux_Data\Managed\UnityEngine.UI.dll</HintPath>
+          <Private>False</Private>
+        </Reference>
     </ItemGroup>
     <ItemGroup>
         <Compile Include="CustomFonts.cs" />
         <Compile Include="Properties\AssemblyInfo.cs" />
+        <Compile Include="SettingsHelper.cs" />
     </ItemGroup>
     <ItemGroup>
       <None Include="packages.config" />
