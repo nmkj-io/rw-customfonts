@@ -164,7 +164,7 @@ namespace CustomFonts
             Widgets.EndScrollView();
 
             var offsetValue = (float)FontSettings.VerticalOffset;
-            listingStandard.AddLabeledSlider($"Vertical Position Offset: {FontSettings.VerticalOffset}",
+            listingStandard.AddLabeledSlider($"Vertical Position Offset: {(FontSettings.VerticalOffset > 0 ? "+" : "")}{FontSettings.VerticalOffset}",
                 ref offsetValue, -20.0f, 20.0f);
             var newOffset = (int)Math.Round(offsetValue);
             if (newOffset != FontSettings.VerticalOffset)
@@ -305,8 +305,15 @@ namespace CustomFonts
 
         public static void RecalcCustomLineHeights(GameFont fontType)
         {
+            var offsetVector = new Vector2(0f, FontSettings.VerticalOffset);
             Text.fontStyles[(int)fontType].clipping = TextClipping.Overflow;
-            Text.fontStyles[(int)fontType].contentOffset = new Vector2(0f, FontSettings.VerticalOffset);
+            Text.fontStyles[(int)fontType].contentOffset = offsetVector;
+            Text.textFieldStyles[(int)fontType].clipping = TextClipping.Overflow;
+            Text.textFieldStyles[(int)fontType].contentOffset = offsetVector;
+            Text.textAreaStyles[(int)fontType].clipping = TextClipping.Clip;
+            Text.textAreaStyles[(int)fontType].contentOffset = offsetVector;
+            Text.textAreaReadOnlyStyles[(int)fontType].clipping = TextClipping.Clip;
+            Text.textAreaReadOnlyStyles[(int)fontType].contentOffset = offsetVector;
         }
     }
 
