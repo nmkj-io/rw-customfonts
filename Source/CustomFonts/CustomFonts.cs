@@ -305,10 +305,11 @@ namespace CustomFonts
 
         public static void RecalcCustomLineHeights(GameFont fontType)
         {
+            var isDefault = FontSettings.CurrentUIFontName == FontSettings.DefaultFontName;
             var offsetVector = new Vector2(0f, FontSettings.VerticalOffset);
-            Text.fontStyles[(int)fontType].clipping = TextClipping.Overflow;
+            Text.fontStyles[(int)fontType].clipping = isDefault ? TextClipping.Clip : TextClipping.Overflow;
             Text.fontStyles[(int)fontType].contentOffset = offsetVector;
-            Text.textFieldStyles[(int)fontType].clipping = TextClipping.Overflow;
+            Text.textFieldStyles[(int)fontType].clipping = isDefault ? TextClipping.Clip : TextClipping.Overflow;
             Text.textFieldStyles[(int)fontType].contentOffset = offsetVector;
             Text.textAreaStyles[(int)fontType].clipping = TextClipping.Clip;
             Text.textAreaStyles[(int)fontType].contentOffset = offsetVector;
